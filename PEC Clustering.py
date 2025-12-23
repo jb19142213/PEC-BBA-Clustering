@@ -1,21 +1,8 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[2]:
-
-
-get_ipython().run_line_magic('pylab', 'inline')
-
-
-# In[3]:
-
-
 import pandas as pd
 import numpy as np
-
-
-# In[107]:
-
 
 from sklearn.datasets import load_iris
 
@@ -39,69 +26,6 @@ for row in missing_rows:
     cols_missing = np.random.choice(iris.feature_names, size=n_cols_missing, replace=False)
     df.loc[row, cols_missing] = np.nan
 
-
-# In[72]:
-
-
-X=df
-X = np.asarray(X, dtype=float)
-n, s = X.shape
-mask = ~np.isnan(X)  # True if observed
-
-
-# In[ ]:
-
-
-
-
-
-# In[71]:
-
-
-V=_init_centers(X,3,100)
-
-
-# In[86]:
-
-
-D2 = _compute_partial_distances(X, V, mask)  # (n, c)
-Delta2 = d2.sum() / (3 * n)
-
-
-# In[87]:
-
-
-delta2
-
-
-# In[82]:
-
-
-d2
-
-
-# In[89]:
-
-
-# memberships (10)
-M, m_empty = _update_memberships(d2=D2, beta=2, delta2=Delta2)
-
-
-# In[91]:
-
-
-M[0]
-
-
-# In[93]:
-
-
-m_empty[0]
-
-
-# In[68]:
-
-
 def _init_centers(X, c, random_state=None):
     """
     Initialize cluster centers by filling missing values with column means
@@ -117,7 +41,7 @@ def _init_centers(X, c, random_state=None):
     return X_filled[idx]
 
 
-# In[5]:
+
 
 
 def _compute_partial_distances(X, V, mask):
@@ -137,7 +61,6 @@ def _compute_partial_distances(X, V, mask):
     return d2
 
 
-# In[6]:
 
 
 def _update_memberships(d2, beta, delta2):
@@ -156,7 +79,6 @@ def _update_memberships(d2, beta, delta2):
     return m, m_empty
 
 
-# In[112]:
 
 
 def _update_centers(X, mask, M, beta):
@@ -180,7 +102,6 @@ def _update_centers(X, mask, M, beta):
     return V
 
 
-# In[110]:
 
 
 # ============================================================
@@ -277,7 +198,6 @@ def preliminary_pec(X, c, beta=2.0, eps=1e-4, max_iter=200, random_state=None):
     return V, M, m_empty, info
 
 
-# In[9]:
 
 
 # ============================================================
@@ -444,7 +364,6 @@ def _fuse_bba_list(bba_list, cluster_candidates_set, c):
     return fused
 
 
-# In[10]:
 
 
 def pec(X, c, beta=2.0, eps=1e-4, max_iter=200, random_state=None):
@@ -642,99 +561,5 @@ def pec(X, c, beta=2.0, eps=1e-4, max_iter=200, random_state=None):
             final_assignments[i] = ('singleton', int(k_max))
 
     return final_assignments, final_bbas
-
-
-# In[ ]:
-
-
-
-
-
-# In[60]:
-
-
-
-
-
-# In[108]:
-
-
-df
-
-
-# In[113]:
-
-
-import numpy as np
-
-# X: your data with np.nan as missing
-# c: number of clusters
-
-preliminary_pec(df.drop("target",axis=1), c=3,eps=1e-4, max_iter=10, beta=2, random_state=40)
-
-
-# In[63]:
-
-
-bbas
-
-
-# In[53]:
-
-
-df["assignments"]=assignments
-
-
-# In[54]:
-
-
-df["assignments"].unique()
-
-
-# In[171]:
-
-
-def pred(tuple_1):
-    if tuple_1[0]=="singleton":
-        return tuple_1[0]
-    elif tuple_1[0]=="meta":
-        return tuple_1[0]
-
-
-# In[172]:
-
-
-df["type"]=df["assignments"].apply(pred)
-
-
-# In[158]:
-
-
-df["clusters"]=df["assignments"].apply(pred)
-
-
-# In[175]:
-
-
-df[df["type"]=="singleton"]["target"]
-
-
-# In[176]:
-
-
-from sklearn.metrics import adjusted_rand_score
-
-# Example cluster labels
-labels_true = df[df["type"]=="singleton"]["target"]
-labels_pred = df[df["type"]=="singleton"]["clusters"]
-
-# Compute Adjusted Rand Index
-ari = adjusted_rand_score(labels_true, labels_pred)
-print(ari)
-
-
-# In[ ]:
-
-
 
 
