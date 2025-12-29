@@ -1,30 +1,5 @@
-#!/usr/bin/env python
-# coding: utf-8
-
 import pandas as pd
 import numpy as np
-
-from sklearn.datasets import load_iris
-
-# Load iris dataset
-iris = load_iris()
-df = pd.DataFrame(data=iris.data, columns=iris.feature_names)
-df['target'] = iris.target
-# Set random seed for reproducibility
-np.random.seed(100)
-
-# Number of rows to have missing values
-n_rows = df.shape[0]
-n_missing = int(0* n_rows)
-
-# Randomly select row indices
-missing_rows = np.random.choice(df.index, size=n_missing, replace=False)
-
-# For each selected row, randomly set 1 or more columns (excluding 'target') to NaN
-for row in missing_rows:
-    n_cols_missing = np.random.randint(1, len(iris.feature_names) + 1)
-    cols_missing = np.random.choice(iris.feature_names, size=n_cols_missing, replace=False)
-    df.loc[row, cols_missing] = np.nan
 
 def _init_centers(X, c, random_state=None):
     """
@@ -39,10 +14,6 @@ def _init_centers(X, c, random_state=None):
     X_filled = np.where(mask, X, col_means)
     idx = rng.choice(n, size=c, replace=False)
     return X_filled[idx]
-
-
-
-
 
 def _compute_partial_distances(X, V, mask):
     """
@@ -60,9 +31,6 @@ def _compute_partial_distances(X, V, mask):
     d2 = (diff_masked ** 2).sum(axis=2)  # (n, c)
     return d2
 
-
-
-
 def _update_memberships(d2, beta, delta2):
     """
     Update membership masses m_ij and m_i_empty (for outliers) given distances d2.
@@ -78,9 +46,6 @@ def _update_memberships(d2, beta, delta2):
     m_empty = delta_term / denom.squeeze()  # m_i∅
     return m, m_empty
 
-
-
-
 def _update_centers(X, mask, M, beta):
     """
     Update cluster centers via formula (11).
@@ -89,20 +54,18 @@ def _update_centers(X, mask, M, beta):
     c = M.shape[1]
     V = np.zeros((c, s), dtype=float)
     m_beta = M ** beta  # (n, c)
+    X_valid = np.where(np.isnan(X), 0, X)  # Replace nan with 0 for calculation
+    valid_mask = (~np.isnan(X)).astype(float)  # 1 where not nan, 0 where nan
 
     for j in range(c):
-        # weights for cluster j: shape (n, 1)
         w = m_beta[:, j:j+1] * mask  # (n, s)
-        num = (w * X).sum(axis=0)    # (s,)
-        den = w.sum(axis=0)          # (s,)
-        # avoid division by zero: if den[p] == 0, keep center dim as 0
+        w_valid = w * valid_mask     # zero out weights where X is nan
+        num = (w_valid * X_valid).sum(axis=0)    # (s,)
+        den = w_valid.sum(axis=0)                # (s,)
         with np.errstate(divide='ignore', invalid='ignore'):
             v_j = np.where(den > 0, num / den, 0.0)
         V[j] = v_j
     return V
-
-
-
 
 # ============================================================
 #  Step 1: Preliminary partial-distance evidential clustering
@@ -196,9 +159,6 @@ def preliminary_pec(X, c, beta=2.0, eps=1e-4, max_iter=200, random_state=None):
         "delta2": delta2
     }
     return V, M, m_empty, info
-
-
-
 
 # ============================================================
 #  Step 2: Multiple imputation + DST redistribution
