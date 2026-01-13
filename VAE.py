@@ -1,9 +1,3 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# In[2]:
-
-
 import pandas as pd
 import torch
 from torch import nn, optim
@@ -13,10 +7,6 @@ from torchvision.utils import save_image, make_grid
 from torch.utils.data import TensorDataset, DataLoader
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-
-# In[5]:
-
 
 class VAE(nn.Module):
     
