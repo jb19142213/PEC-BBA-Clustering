@@ -32,110 +32,177 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 device
 
 
-# In[ ]:
+import torch
+import torch.nn as nn
+import torch.optim as optim
 
+# =========================
+# Masked Variational Autoencoder
+# =========================
 
+class MaskedVAE(nn.Module):
+    """
+    Masked Variational Autoencoder for incomplete data.
+    Encoder input: [x ⊙ m , m]
+    Latent output: mu (used as latent feature u_i)
+    """
 
-
-
-# In[5]:
-
-
-class VAE(nn.Module):
-    
-    def __init__(self, input_dim=13, hidden_dim = 128, latent_dim=3):
+    def __init__(self, input_dim, hidden_dim=128, latent_dim=8):
         super().__init__()
+
+        # Encoder: input_dim * 2 because of concatenation with mask
         self.encoder = nn.Sequential(
-        nn.Linear(input_dim, hidden_dim),
-        nn.LeakyReLU(negative_slope=0.1),
-        nn.Linear(hidden_dim, hidden_dim-2),
-        nn.LeakyReLU(negative_slope=0.1),
-        nn.Linear(hidden_dim-2, hidden_dim-4),
-        nn.LeakyReLU(negative_slope=0.1)
+            nn.Linear(input_dim * 2, hidden_dim),
+            nn.LeakyReLU(0.1),
+            nn.Linear(hidden_dim, hidden_dim // 2),
+            nn.LeakyReLU(0.1),
+            nn.Linear(hidden_dim // 2, hidden_dim // 4),
+            nn.LeakyReLU(0.1)
         )
-        
-        self.fc_mu = nn.Linear(hidden_dim-4, latent_dim)
-        self.fc_logvar = nn.Linear(hidden_dim-4, latent_dim)
-        
+
+        self.fc_mu = nn.Linear(hidden_dim // 4, latent_dim)
+        self.fc_logvar = nn.Linear(hidden_dim // 4, latent_dim)
+
+        # Decoder
         self.decoder = nn.Sequential(
-        nn.Linear(latent_dim, hidden_dim-4),
-        nn.LeakyReLU(negative_slope=0.1),
-        nn.Linear(hidden_dim-4, hidden_dim-2),
-        nn.LeakyReLU(negative_slope=0.1),
-        nn.Linear(hidden_dim-2, hidden_dim),
-        nn.LeakyReLU(negative_slope=0.1),
-        nn.Linear(hidden_dim, input_dim))
-        
-    def encode(self, x):
-        h = self.encoder(x)
+            nn.Linear(latent_dim, hidden_dim // 4),
+            nn.LeakyReLU(0.1),
+            nn.Linear(hidden_dim // 4, hidden_dim // 2),
+            nn.LeakyReLU(0.1),
+            nn.Linear(hidden_dim // 2, hidden_dim),
+            nn.LeakyReLU(0.1),
+            nn.Linear(hidden_dim, input_dim)
+        )
+
+    def encode(self, x, mask):
+        x_masked = x * mask
+        enc_input = torch.cat([x_masked, mask], dim=1)
+        h = self.encoder(enc_input)
         mu = self.fc_mu(h)
         logvar = self.fc_logvar(h)
         return mu, logvar
-    
+
     def reparameterize(self, mu, logvar):
-        std = torch.exp(0.5*logvar)
+        std = torch.exp(0.5 * logvar)
         eps = torch.randn_like(std)
         return mu + eps * std
-    
+
     def decode(self, z):
         return self.decoder(z)
-    
-    def forward(self, x):
-        mu, logvar = self.encode(x)
+
+    def forward(self, x, mask):
+        mu, logvar = self.encode(x, mask)
         z = self.reparameterize(mu, logvar)
         recon = self.decode(z)
         return recon, mu, logvar
 
-def vae_loss(recon_x, x, mu, logvar,recon_weight=0.6, kl_weight=0.4):
-    recon_loss = nn.functional.mse_loss(recon_x, x, reduction="mean")
-    #binary_cross_entropy(x_hat, x, reduction='sum')
-    kl_div = -0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp())
-    loss = recon_weight * recon_loss + kl_weight * kl_div #
-    return loss,recon_loss.item(), kl_div.item() #
+
+# =========================
+# Masked VAE Loss
+# =========================
+
+def masked_vae_loss(
+    recon_x,
+    x,
+    mask,
+    mu,
+    logvar,
+    recon_weight=0.7,
+    kl_weight=0.3,
+    eps=1e-8
+):
+    """
+    Masked reconstruction + KL divergence loss
+    """
+
+    # Masked reconstruction loss (MSE over observed entries only)
+    se = (recon_x - x) ** 2
+    masked_se = se * mask
+    recon_loss = masked_se.sum(dim=1) / (mask.sum(dim=1) + eps)
+    recon_loss = recon_loss.mean()
+
+    # KL divergence
+    kl_loss = -0.5 * torch.mean(
+        torch.sum(1 + logvar - mu.pow(2) - logvar.exp(), dim=1)
+    )
+
+    total_loss = recon_weight * recon_loss + kl_weight * kl_loss
+    return total_loss, recon_loss.item(), kl_loss.item()
 
 
-class TorchScaler:
-    def fit(self, X: torch.Tensor):
-        self.mean = X.mean(dim=0, keepdim=True)
-        self.std = X.std(dim=0, unbiased=False, keepdim=True)
-        self.std[self.std == 0] = 1.0
-        return self
-    def transform(self, X: torch.Tensor):
-        return (X - self.mean) / self.std
-    def inverse_transform(self, X: torch.Tensor):
-        return X * self.std + self.mean
-    
-def train_vae(model, dataloader, n_epochs=20, lr=1e-3, weight_decay=0.0, verbose=True):
-    model = model.to(device)
-    #optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
-    optimizer= optim.RMSprop(model.parameters(), lr=lr, alpha=0.9, eps=1e-08)
+# =========================
+# Training Function
+# =========================
+
+def train_masked_vae(
+    model,
+    dataloader,
+    device,
+    epochs=50,
+    lr=1e-3
+):
+    model.to(device)
+    optimizer = optim.Adam(model.parameters(), lr=lr)
+
     model.train()
-    for epoch in range(1, n_epochs + 1):
-        running_loss = 0.0
-        running_recon = 0.0
-        running_kl = 0.0
-        batches = 0
-        for (xb, ) in dataloader:
-            xb = xb.to(device).float()
+    for epoch in range(1, epochs + 1):
+        total_loss = 0.0
+        total_rec = 0.0
+        total_kl = 0.0
+
+        for x, mask in dataloader:
+            x = x.to(device).float()
+            mask = mask.to(device).float()
+
             optimizer.zero_grad()
-            recon, mu, log_var = model(xb)
-            loss,recon_l, kl_l = vae_loss(recon, xb, mu, log_var)
+            recon, mu, logvar = model(x, mask)
+            loss, rec, kl = masked_vae_loss(recon, x, mask, mu, logvar)
             loss.backward()
             optimizer.step()
-            running_loss += loss.item()
-            running_recon += recon_l
-            running_kl += kl_l
-            batches += 1
-        if verbose :
-            print(f"Epoch {epoch}/{n_epochs} avg_loss = {running_loss/batches:.6f} recon = {running_recon/batches:.6f} kl={running_kl/batches:.6f}")
+
+            total_loss += loss.item()
+            total_rec += rec
+            total_kl += kl
+
+        print(
+            f"Epoch {epoch:03d} | "
+            f"Loss: {total_loss:.4f} | "
+            f"Recon: {total_rec:.4f} | "
+            f"KL: {total_kl:.4f}"
+        )
+
     return model
 
-def extract_latent(model, X_tensor):
+
+# =========================
+# Latent Feature Extraction
+# =========================
+
+def extract_latent_features(model, X, mask, device):
+    """
+    Returns latent feature vectors u_i = mu_i
+    """
     model.eval()
     with torch.no_grad():
-        X_device = X_tensor.to(device).float()
-        mu, logvar = model.encode(X_device)
-        return mu.cpu()
+        X = X.to(device).float()
+        mask = mask.to(device).float()
+        mu, _ = model.encode(X, mask)
+    return mu.cpu()
+
+
+# =========================
+# Example Usage (Skeleton)
+# =========================
+"""
+Assumes your DataLoader yields (x, mask)
+x    : tensor of shape [batch_size, input_dim]
+mask : tensor of shape [batch_size, input_dim], binary {0,1}
+"""
+
+# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# model = MaskedVAE(input_dim=INPUT_DIM, latent_dim=LATENT_DIM)
+# model = train_masked_vae(model, dataloader, device)
+# U = extract_latent_features(model, X_full, mask_full, device)
 
 
 # In[6]:
