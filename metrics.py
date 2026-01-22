@@ -360,115 +360,11 @@ def compute_all_metrics(original_label, pred_label):
     
     return metrics
 
-def print_metrics_report(metrics):
-    """
-    Print a formatted report of all metrics.
-    """
-    print("=" * 70)
-    print("CLUSTERING EVALUATION METRICS")
-    print("=" * 70)
-    
-    print(f"{'Metric':<10} {'Value':<10} {'Description':<50}")
-    print("-" * 70)
-    
-    descriptions = {
-        'Re': 'Error rate (misclassification rate, 0-1, lower better)',
-        'Ri': 'Imprecision rate (always 0 - no meta-clusters)',
-        'EP': 'Evidential Precision (precision on non-outliers, 0-1, higher better)',
-        'ERI': 'Evidential Rank Index (0-1, higher better)',
-        'RI': 'Rand Index (standard, 0-1, higher better)',
-        'ARI': 'Adjusted Rand Index (chance-adjusted, -1 to 1, higher better)'
-    }
-    
-    for metric_name, value in metrics.items():
-        desc = descriptions.get(metric_name, '')
-        print(f"{metric_name:<10} {value:.4f}     {desc:<50}")
-    
-    print("=" * 70)
-
-# Additional utility functions
-def accuracy(original_label, pred_label, ignore_outliers=False):
-    """
-    Calculate accuracy of clustering.
-    
-    Parameters:
-    -----------
-    original_label : array-like, shape (n_samples,)
-        Ground truth cluster assignments
-    pred_label : array-like, shape (n_samples,)
-        Predicted cluster assignments
-    ignore_outliers : bool, default=False
-        If True, only consider non-outlier predictions
-        
-    Returns:
-    --------
-    acc : float
-        Accuracy (0 to 1, higher is better)
-    """
-    n = len(original_label)
-    if n == 0:
-        return 0.0
-    
-    if ignore_outliers:
-        # Only consider non-outlier predictions
-        mask = pred_label != -1
-        if np.sum(mask) == 0:
-            return 0.0
-        correct = np.sum(original_label[mask] == pred_label[mask])
-        return correct / np.sum(mask)
-    else:
-        # Consider all predictions (outliers always wrong)
-        correct = 0
-        for i in range(n):
-            if pred_label[i] != -1 and pred_label[i] == original_label[i]:
-                correct += 1
-        return correct / n
-
-def outlier_rate(pred_label):
-    """
-    Calculate the percentage of points classified as outliers.
-    
-    Parameters:
-    -----------
-    pred_label : array-like, shape (n_samples,)
-        Predicted cluster assignments
-        
-    Returns:
-    --------
-    rate : float
-        Percentage of outliers (0 to 1)
-    """
-    if len(pred_label) == 0:
-        return 0.0
-    return np.sum(np.array(pred_label) == -1) / len(pred_label)
 
 # Example usage
 if __name__ == "__main__":
-    # Example 1: Simple case with no outliers
-    print("Example 1: No outliers")
     original_label = np.array([0, 0, 0, 1, 1, 1, 2, 2, 2])
     pred_label = np.array([0, 0, 1, 1, 1, 2, 2, 2, 0])  # Some misclassifications
     
     metrics = compute_all_metrics(original_label, pred_label)
-    print_metrics_report(metrics)
-    print(f"Accuracy (ignore outliers): {accuracy(original_label, pred_label, ignore_outliers=True):.4f}")
-    print()
-    
-    # Example 2: With outliers
-    print("Example 2: With outliers")
-    original_label = np.array([0, 0, 0, 1, 1, 1, 2, 2, 2])
-    pred_label = np.array([0, 0, -1, 1, 1, 2, 2, 2, -1])  # Two outliers
-    
-    metrics = compute_all_metrics(original_label, pred_label)
-    print_metrics_report(metrics)
-    print(f"Accuracy (ignore outliers): {accuracy(original_label, pred_label, ignore_outliers=True):.4f}")
-    print(f"Outlier rate: {outlier_rate(pred_label):.4f}")
-    print()
-    
-    # Example 3: Perfect clustering
-    print("Example 3: Perfect clustering")
-    original_label = np.array([0, 0, 0, 1, 1, 1, 2, 2, 2])
-    pred_label = np.array([0, 0, 0, 1, 1, 1, 2, 2, 2])
-    
-    metrics = compute_all_metrics(original_label, pred_label)
-    print_metrics_report(metrics)
+    print(metrics)
