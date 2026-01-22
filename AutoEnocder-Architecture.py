@@ -205,91 +205,103 @@ mask : tensor of shape [batch_size, input_dim], binary {0,1}
 # U = extract_latent_features(model, X_full, mask_full, device)
 
 
-# In[6]:
+
+import numpy as np
+import pandas as pd
+import torch
+from torch.utils.data import Dataset, DataLoader
+from sklearn.datasets import load_iris
+from sklearn.preprocessing import StandardScaler
+
+# ============================================
+# 1. Load Iris Dataset
+# ============================================
+
+iris = load_iris()
+df = pd.DataFrame(iris.data, columns=iris.feature_names)
+df["target"] = iris.target
+
+# ============================================
+# 2. Inject Missing Values (MCAR)
+# ============================================
+
+np.random.seed(42)
+
+n_samples = df.shape[0]
+missing_ratio = 0.30
+n_missing_rows = int(missing_ratio * n_samples)
+
+missing_rows = np.random.choice(df.index, size=n_missing_rows, replace=False)
+
+for row in missing_rows:
+    n_cols_missing = np.random.randint(1, len(iris.feature_names) + 1)
+    cols_missing = np.random.choice(
+        iris.feature_names, size=n_cols_missing, replace=False
+    )
+    df.loc[row, cols_missing] = np.nan
+
+# ============================================
+# 3. Create Feature Matrix and Mask
+# ============================================
+
+X = df[iris.feature_names].values.astype(np.float32)
+
+# Binary mask: 1 = observed, 0 = missing
+mask = (~np.isnan(X)).astype(np.float32)
+
+# Fill missing values with zero (mask-aware)
+X_filled = np.nan_to_num(X, nan=0.0)
+
+# ============================================
+# 4. Mask-aware Standardization
+# ============================================
+
+X_scaled = X_filled.copy()
+scaler = StandardScaler()
+
+for j in range(X.shape[1]):
+    observed_idx = mask[:, j] == 1
+    X_scaled[observed_idx, j] = scaler.fit_transform(
+        X_filled[observed_idx, j].reshape(-1, 1)
+    ).ravel()
+
+# ============================================
+# 5. PyTorch Dataset and DataLoader
+# ============================================
+
+class IrisMaskedDataset(Dataset):
+    def __init__(self, X, mask):
+        self.X = torch.tensor(X, dtype=torch.float32)
+        self.mask = torch.tensor(mask, dtype=torch.float32)
+
+    def __len__(self):
+        return self.X.shape[0]
+
+    def __getitem__(self, idx):
+        return self.X[idx], self.mask[idx]
 
 
-from scmac.spark import start_spark_session
-import dataiku.spark as dkuspark
+dataset = IrisMaskedDataset(X_scaled, mask)
+dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
 
-_, sql_context = start_spark_session("test")
-d = dataiku.Dataset("DATA_FOR_CLUSTER_DEMO")
-d.read_partitions = ["2025-08"]
-sdf = dkuspark.get_dataframe(sql_context, d)
+# ============================================
+# 6. Train Masked VAE (architecture assumed defined)
+# ============================================
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# In[7]:
+# model = MaskedVAE(input_dim=X_scaled.shape[1], latent_dim=LATENT_DIM).to(device)
+# model = train_masked_vae(model, dataloader, device)
 
+# ============================================
+# 7. Extract Latent Features u_i
+# ============================================
 
-X = sdf.toPandas().drop(["n_cust", "timestamp", "cust_c_custseg_lm"], axis=1)
+# model.eval()
+# with torch.no_grad():
+#     X_tensor = torch.tensor(X_scaled).to(device)
+#     mask_tensor = torch.tensor(mask).to(device)
+#     U, _ = model.encode(X_tensor, mask_tensor)
 
-
-# In[8]:
-
-
-X_tensor = torch.from_numpy(np.array(X))
-scaler = TorchScaler().fit(X_tensor)
-X_scaled = scaler.transform(X_tensor)
-
-
-# In[9]:
-
-
-X_scaled
-
-
-# In[10]:
-
-
-torch.manual_seed(42)
-batch_size = 128
-ds = TensorDataset(X_scaled)
-loader = DataLoader(ds, batch_size=batch_size, shuffle=True, drop_last=False)
-
-
-# In[ ]:
-
-
-
-
-
-# In[11]:
-
-
-vae = VAE(input_dim=13, hidden_dim=12, latent_dim=3)
-vae = train_vae(vae, loader, n_epochs=150, lr=1e-3)
-
-
-# In[ ]:
-
-
-
-
-
-# In[12]:
-
-
-latent = extract_latent(vae, X_scaled)
-latent_np = latent.numpy()
-
-
-# In[13]:
-
-
-latent_np
-
-
-# In[14]:
-
-
-df=pd.DataFrame({
-    "F1":latent_np[:,0],
-    "F2":latent_np[:,1],
-    "F3":latent_np[:,2]
-#    "F4":latent_np[:,3]
-})
-
-
-# In[15]:
-
-
-df.cov()
+# U = U.cpu().numpy()
+# print("Latent feature shape:", U.shape)
