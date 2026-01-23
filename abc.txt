@@ -8,3 +8,11 @@ Meeting ID:
 
 Passcode:
 7BW2Ek7H
+
+
+Variation	Tracking
+VAE 	
+gamma beta tuning	
+objective	
+evidence	
+DSTadding	
