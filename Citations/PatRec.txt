@@ -1,1 +1,7 @@
+Dai, H., Liu, Y., Su, P., Cai, H., Huang, S., and Lv, J. Multi-view clustering by inter-cluster connectivity guided reward. In Proceedings of the 41st International Conference on Machine Learning (ICML), 2024. URL https://openreview.net/forum?id=uEx2bSAJu8.
 
+Lijoi, A., Prünster, I., and Rigon, T. Finite-dimensional discrete random structures and Bayesian clustering. Journal of the American Statistical Association, 119(546):929–941, 2024. URL https://doi.org/10.1080/01621459.2022.2156291.
+
+Maulen, R. Attention-based clustering. In Advances in Neural Information Processing Systems (NeurIPS), 2025. URL https://neurips.cc/virtual/2025/poster/118361.
+
+Saha, B., Krotov, D., Zaki, M., and Ram, P. Deep clustering with associative memories. In International Conference on Learning Representations (ICLR), 2025. URL https://openreview.net/forum?id=Awsb8jhEx3.
