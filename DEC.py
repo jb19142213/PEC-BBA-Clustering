@@ -1,9 +1,3 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# In[15]:
-
-
 import pandas as pd
 import torch
 from torch import nn, optim
@@ -15,12 +9,8 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-
-# In[ ]:
-
-
 # ============================================================
-# Stage 2: Distributional Evidential Clustering (Option 3)
+# Stage 2: Distributional Evidential Clustering
 # ------------------------------------------------------------
 # Input  : U  -> latent features from Stage 1 (masked AE/VAE)
 # Output : fuzzy memberships, hard labels, cluster parameters
@@ -266,10 +256,8 @@ def distributional_evidential_clustering(
         "objectives": np.array(objectives),
         "final_objective": final_objective
     }
-    
 
 
-# In[16]:
 
 
 """
@@ -635,15 +623,9 @@ def compute_all_metrics(original_label, pred_label):
     return metrics
 
 
-# In[17]:
-
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 device
-
-
-# In[27]:
-
 
 # =========================
 # Masked Variational Autoencoder
@@ -798,10 +780,6 @@ def extract_latent_features(model, X, mask, device):
         mu, _ = model.encode(X, mask)
     return mu.cpu()
 
-
-# In[6]:
-
-
 # ============================================
 # 1. Load  Dataset
 # ============================================
@@ -830,33 +808,8 @@ def load_uci_dataset(name, target_col=None):
     return X, y, df
 
 
-# In[64]:
-
-
 # How to load
-_, true_labels, df = load_uci_dataset("ilpd")
-
-
-# In[68]:
-
-
-df
-
-
-# In[66]:
-
-
-true_labels
-
-
-# In[67]:
-
-
-df["V2"]=[1 if x=="Male" else 0 for x in df["V2"]]
-
-
-# In[19]:
-
+_, true_labels, df = load_uci_dataset("DATASET_NAME")
 
 # ============================================
 # 2. Inject Missing Values (MCAR)
@@ -894,16 +847,6 @@ X_missing = inject_missing_entries(X1, missing_ratio=0)
 df = df.copy()
 df[feature_cols] = X_missing
 df=df[feature_cols]
-
-
-# In[70]:
-
-
-feature_cols
-
-
-# In[20]:
-
 
 # ============================================
 # 3. Create Feature Matrix and Mask
@@ -945,11 +888,6 @@ X_scaled = scaler.transform(X_tensor)  # use X_tensor, not X_scaled
 
 mask_tensor = torch.tensor(mask, dtype=torch.float32)
 
-
-# In[ ]:
-
-
-
 # ============================================
 # 5. PyTorch Dataset and DataLoader
 # ============================================
@@ -970,10 +908,6 @@ dataset = MaskedDataset(X_scaled, mask_tensor)
 torch.manual_seed(42)
 dataloader = DataLoader(dataset, batch_size=256, shuffle=True)
 
-
-# In[ ]:
-
-
 # =========================
 # Example Usage (Skeleton)
 vae = MaskedVAE(input_dim=10, hidden_dim=10, latent_dim=4)
@@ -982,31 +916,13 @@ latent = extract_latent_features(vae, X_scaled,mask_tensor,device)
 latent_np = latent.numpy()
 U=latent_np
 
-
-# In[78]:
-
-
 result = distributional_evidential_clustering(U,n_clusters=2,beta=2,gamma=0,max_iter=500,tol=1e-8,seed=42)
 
-
-# In[79]:
-
-
-ilpd_result=result
-
-
-# In[95]:
-
-
-ilpd_df=pd.DataFrame({"Iterations":np.array(range(1, len(ilpd_result["objectives"][1:]))), "convergance_rate": np.diff(ilpd_result["objectives"][1:])})
-
-
-# In[36]:
-
+convergence_df=pd.DataFrame({"Iterations":np.array(range(1, len(result["objectives"][1:]))), "convergance_rate": np.diff(result["objectives"][1:])})
 
 def missing_latent_value(p):
     # How to load
-    _, true_labels, df = load_uci_dataset("ilpd")
+    _, true_labels, df = load_uci_dataset("DATSET_NAME")
     print(f"missing rate:{p}")
     X_missing = inject_missing_entries(X1, missing_ratio=p)
 
@@ -1036,10 +952,6 @@ def missing_latent_value(p):
     
     return df, latent_np
 
-
-# In[38]:
-
-
 def storing_results(p):
     missing_rate=p
     data, U = missing_latent_value(missing_rate)
@@ -1048,20 +960,9 @@ def storing_results(p):
     data["pred"]=labels
     return compute_all_metrics(true_labels, labels)
 
-
-# In[39]:
-
-
 incomplete_rate=[0,0.02,0.04,0.06,0.08,0.1,0.15,0.2,0.25,0.3]
 iris_results=pd.DataFrame()
 for i in incomplete_rate:
     data = {"incomplete_rate":i} | storing_results(i)
     data=pd.DataFrame([data])
     iris_results=pd.concat([iris_results, data], ignore_index=True)
-
-
-# In[ ]:
-
-
-
-
